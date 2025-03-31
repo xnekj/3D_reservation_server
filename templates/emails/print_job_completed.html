@@ -1,0 +1,13 @@
+{% load i18n %}{% autoescape off %}
+{% blocktranslate with username=username %}Hello {{ username }},{% endblocktranslate %}
+
+{% blocktranslate %}You're receiving this email because your 3D print job has completed successfully.{% endblocktranslate %}
+
+{% blocktranslate %}Print job name:{% endblocktranslate %} {{ filename|cut:"gcode_files/" }}
+{% blocktranslate %}Printer used:{% endblocktranslate %} {{ printer }}
+
+{% blocktranslate %}You can now visit the printer and collect your model.{% endblocktranslate %}
+
+{% blocktranslate %}Thanks for using the 3D Printing Reservation System!{% endblocktranslate %}
+{% blocktranslate %}This is an automated message. Please do not reply.{% endblocktranslate %}
+{% endautoescape %}

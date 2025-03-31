@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}List printers{% endblock %}
+
+{% block content %}
+<br>
+<h2 class="mb-4">Available Printers</h2>
+<div class="row">
+    {% for printer in printers %}
+    <div class="col-md-4">
+        <div class="card" style="display: inline-block; width: 18rem; margin: 10px;">
+            <a href="{% url 'printer_detail' printer.pk %}" class="list-group-item list-group-item-action">
+                <h5 class="mb-1">{{ printer.name }}</h5>
+                <small>Port: {{ printer.port }} | Baudrate: {{ printer.baudrate }}</small>
+            </a>
+        </div>
+    </div>
+    {% empty %}
+        <p>No printers available.</p>
+    {% endfor %}
+</div>
+
+{% endblock content %}

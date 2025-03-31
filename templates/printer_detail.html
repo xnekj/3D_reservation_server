@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ printer.name }} - Details{% endblock %}
+
+{% block content %}
+<br>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h3 class="mb-0">Name: {{ printer.name }}</h3>
+  {% if user.is_superuser or user.role == 'admin' %}
+    <div class="d-flex gap-2">
+      <form method="get" action="{% url 'printer_delete' printer.pk %}">
+        <button type="submit" class="btn btn-danger">Remove Printer</button>
+      </form>
+      <form method="post" action="{% url 'reconnect_printer' printer.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-secondary">Reconnect Printer</button>
+      </form>
+    </div>
+  {% endif %}
+</div>
+
+<hr class="mb-3 mt-0">
+
+<div class="row mt-4">
+  <div class="col-12 col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div>
+          <strong>Status:</strong> <span id="status">Loading...</span><br>
+        </div>
+
+        <div id="upload-info" style="display: none;">
+          <strong>SD Upload Time:</strong> <span id="sd-upload-time">-</span><br>
+          <strong>Est. SD Upload Time Left:</strong> <span id="sd-upload-time-left">-</span><br>
+        </div>
+        
+        <div id="print-info" style="display: none;">
+          <strong>Print Time:</strong> <span id="print-time">-</span><br>
+          <strong>Est.Time Left:</strong> <span id="print-time-left">-</span><br>
+          <strong>Bytes:</strong> <span id="print-bytes">-</span><br>
+          <strong>Progress:</strong> <span id="print-progress">-</span><br>
+          <strong>Hotend Temp:</strong> <span id="print-hotend-temp">-</span> °C<br>
+          <strong>Bed Temp:</strong> <span id="print-bed-temp">-</span> °C<br>
+        </div>
+
+        <div id="default-info" style="display: none;">
+          <strong>Hotend Temp:</strong> <span id="default-hotend-temp">-</span> °C<br>
+          <strong>Bed Temp:</strong> <span id="default-bed-temp">-</span> °C<br>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-4 ms-auto d-flex justify-content-end align-items-end">
+    <form method="post" action="{% url 'start_print' printer.pk %}" enctype="multipart/form-data" class="w-100">{% csrf_token %}
+      <h5>Print file:</h5>
+      <div class="input-group">
+        <input type="file" name="file" accept=".gcode,.gco" class="form-control" required>
+        {% if model_removed %}
+          <button class="btn btn-success" type="submit">Print Gcode</button>
+        {% elif current_job %}
+          <button class="btn btn-success" type="submit">Add to Queue</button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
+<br>
+<div class="card">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      {% if current_job %}
+        <div class="mt-3">
+          <strong>Currently printing:</strong> {{ current_job.file.name|cut:"gcode_files/" }}
+          <strong> | Submitted by:</strong> {{ current_job.user.username }}
+          <strong> | Submitted at:</strong> {{ current_job.created_at|date:"H:i:s d.m.Y" }}
+          <strong> | Status:</strong> <span id="print-job-status">{{ current_job.status }}</span>
+        </div>
+      {% else %}
+        <div class="mt-3">
+          <strong>There are no active print jobs at the moment.</strong>
+        </div>
+      {% endif %}   
+      <!-- Remove Model Form -->
+        <div class="d-flex gap-2">
+          <form method="post" action="" id="remove-model-form" style="display: none;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-warning w-100">Remove Model</button>
+          </form>
+        </div>
+    </div>
+  </div>
+</div>
+
+
+<br>
+<div class="mt-4">
+  {% if messages %}
+    {% for message in messages %}
+      {% if 'print_error' in message.tags %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% elif 'print_success' in message.tags %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+</div>
+
+<div class="mt-4">
+  <h3 class="mt-4">Print Queue</h3>
+  <ul class="list-group">
+    {% for job in page_obj %}
+      <li class="list-group-item">
+        <strong>File:</strong> {{ job.file.name|cut:"gcode_files/" }}
+        <strong>| User:</strong> {{ job.user.username }}
+        <strong>| Submitted:</strong> {{ job.created_at|date:"d.m.Y H:i" }}
+        <strong> | Status:</strong> {{ job.status}}
+    {% empty %}
+      <li class="list-group-item">No jobs in queue.</li>
+    {% endfor %}
+  </ul>
+</div>
+
+<div class="mt-3 d-flex align-items-center">
+  {% if page_obj.has_previous %}
+    <a class="btn btn-secondary me-2" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+  {% endif %}
+
+
+  {% if page_obj.has_next %}
+   <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    <a class="btn btn-secondary ms-2" href="?page={{ page_obj.next_page_number }}">Next</a>
+  {% endif %}
+</div>
+
+{% if printer_connected %}
+  <script>
+    const currentUserId = {{ request.user.id }};
+
+    const socket = new WebSocket(`ws://${window.location.host}/ws/printers/{{ printer.pk }}/`);
+
+    socket.onmessage = function(e) {
+      const data = JSON.parse(e.data);
+      const status = data.status || "-";
+    
+      // Update all fields
+      document.getElementById("status").textContent = status;
+
+      // Update default info
+      document.getElementById("default-hotend-temp").textContent = data.hotend_temp || "-";
+      document.getElementById("default-bed-temp").textContent = data.bed_temp || "-";
+
+      // Update print info
+      document.getElementById("print-time").textContent = data.print_time || "-";
+      document.getElementById("print-time-left").textContent = data.estimated_time_remaining || "-";
+      document.getElementById("print-progress").textContent = data.print_progress || "-";
+      document.getElementById("print-hotend-temp").textContent = data.hotend_temp || "-";
+      document.getElementById("print-bed-temp").textContent = data.bed_temp || "-";
+      document.getElementById("print-bytes").textContent = `${data.current_byte || 0} / ${data.total_byte || 0}`;
+
+      // Update upload info
+      document.getElementById("sd-upload-time").textContent = data.sd_upload_time || "-";
+      document.getElementById("sd-upload-time-left").textContent = data.sd_upload_time_remaining || "-";
+
+      // Show/hide based on status
+      const uploadInfo = document.getElementById("upload-info");
+      const printInfo = document.getElementById("print-info");
+      const defaultInfo = document.getElementById("default-info");
+      const jobStatusEl = document.getElementById("print-job-status");
+
+      if (status === "Uploading to SD card") {
+        if (uploadInfo) uploadInfo.style.display = "block";
+        if (printInfo) printInfo.style.display = "none";
+        if (defaultInfo) defaultInfo.style.display = "none";
+      } else if (status === "SD printing") {
+        if (uploadInfo) uploadInfo.style.display = "none";
+        if (printInfo) printInfo.style.display = "block";
+        if (defaultInfo) defaultInfo.style.display = "none";
+      } else {
+        if (uploadInfo) uploadInfo.style.display = "none";
+        if (printInfo) printInfo.style.display = "none";
+        if (defaultInfo) defaultInfo.style.display = "block";
+      }
+
+    //Update print-job-status (current_job.status)
+    if (jobStatusEl) {
+      jobStatusEl.textContent = data.job_status || "Loading...";
+    }
+
+    //Show and hide the remove model button
+    const removeBtn = document.getElementById("remove-model-form");
+    if (
+      data.job_status === "Completed" &&
+      String(data.job_owner_id) === String(currentUserId)
+    ) {
+      if (removeBtn) {
+        removeBtn.style.display = "block";
+        removeBtn.action = `/printers/printjob/${data.job_id}/delete/`;
+      }
+    }
+  };
+
+    socket.onclose = function() {
+      document.getElementById("status").textContent = "Connecting...";
+    };
+  </script>
+{% endif %}
+{% endblock %}
