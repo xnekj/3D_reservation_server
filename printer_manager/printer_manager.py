@@ -666,7 +666,7 @@ class PrinterManager:
         regex_time = r"echo:Print time:\s*(?:(\d+)h\s*)?(?:(\d+)m\s*)?(?:(\d+)s)?" # Print time
         match_time = re.match(regex_time, line)
 
-        regex_time_2 = r"echo:\s*(?:\d+\s*hour[s]?,?\s*)?(?:\d+\s*min[s]?,?\s*)?(?:\d+\s*sec[s]?)" # Print time second option
+        regex_time_2 = r"echo:\s*(?:(\d+)\s*hour[s]?,?\s*)?(?:(\d+)\s*min[s]?,?\s*)?(?:(\d+)\s*sec[s]?)" # Print time second option
         match_time_2 = re.match(regex_time_2, line)
 
         regex_status = r"SD printing byte (\d+)/(\d+)" # Print status
