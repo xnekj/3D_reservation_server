@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from django.views.generic import ListView, CreateView, DeleteView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib import messages
@@ -7,7 +7,9 @@ from django.core.files.storage import FileSystemStorage
 from django.conf import settings
 from django.http import HttpResponseForbidden
 from django.core.paginator import Paginator
+from django.http import JsonResponse
 import os
+import time
 
 from .models import Printer, PrintJob
 from .forms import PrinterForm
@@ -77,7 +79,7 @@ class PrinterDetailView(LoginRequiredMixin, DetailView):
         printer = self.get_object()
 
         # Get the currently printing job for this printer
-        context['current_job'] = PrintJob.objects.filter(printer=printer, status__in=["Printing", "Completed"]).first()
+        context['current_job'] = PrintJob.objects.filter(printer=printer, status__in=["Printing", "Completed", "Failed"]).first()
 
         # Get the queue
         queue_list = PrintJob.objects.filter(printer=printer, status="Queued").order_by('created_at')
@@ -120,6 +122,16 @@ def start_print(request, pk):
     try:
         if printer_manager.model_removed.get(printer.name, False):
             printer_manager.print_gcode(printer.name, file_path, raise_on_error=True)
+            
+            # Poll the error flag for a short time, because error is in thread
+            # and may not be set immediately
+            for _ in range(60):  # check every 0.5s for 30s
+                if printer_manager.job_status_error.get(printer.name):
+                    job.status = "Failed"
+                    job.save()
+                    raise Exception(f"Error during print job on '{printer.name}'. Please check the printer status.")
+                time.sleep(0.5)
+            
             job.status = "Printing"
             job.save()
             printer_manager.model_removed[printer.name] = False
@@ -133,8 +145,11 @@ def start_print(request, pk):
 
     except Exception as e:
         messages.error(request, f"Print failed: {e}", extra_tags='print_error')
+        
 
-    return redirect('printer_detail', pk=pk)
+    return JsonResponse({
+    "redirect": reverse('printer_detail', kwargs={"pk": printer.pk})
+})
 
 def delete_printjob(request, pk):
     job = get_object_or_404(PrintJob, pk=pk)
@@ -157,13 +172,21 @@ def delete_printjob(request, pk):
         # Delete the uploaded file if it exists
         if job.file and os.path.isfile(job.file.path):
             os.remove(job.file.path)
-            
+
         # Remove from printer manager
         printer_manager.remove_model(printer_name, raise_on_error=True)
-
+                    
         # Start next job if one is queued
         queued_job = PrintJob.objects.filter(printer=printer, status="Queued").order_by('created_at').first()
         if queued_job:
+
+            for _ in range(60):  # check every 0.5s for 30s
+                if printer_manager.job_status_error.get(printer.name):
+                    queued_job.status = "Failed"
+                    queued_job.save()
+                    raise Exception(f"Error during print job on '{printer.name}'. Please check the printer status.")
+                time.sleep(0.5)
+
             queued_job.status = "Printing"
             queued_job.save()
             filename = os.path.basename(queued_job.file.path)
@@ -171,12 +194,12 @@ def delete_printjob(request, pk):
         else:
             messages.success(request, "Model removed. You can now upload a new one.", extra_tags='print_success')
 
-
-
     except Exception as e:
         messages.error(request, f"Error removing model: {e}", extra_tags='print_error')
 
-    return redirect('printer_detail', pk=printer.pk)
+    return JsonResponse({
+    "redirect": reverse('printer_detail', kwargs={"pk": printer.pk})
+    })
 
 def reconnect_printer(request, pk):
     printer = get_object_or_404(Printer, pk=pk)

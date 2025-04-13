@@ -16,7 +16,7 @@ class PrinterStatusConsumer(AsyncWebsocketConsumer):
         self.email_send = False
 
     async def connect(self):
-        pk = self.scope['url_route']['kwargs']['pk']  # use 'pk' instead of 'name'
+        pk = self.scope['url_route']['kwargs']['pk'] 
 
         try:
             printer = await sync_to_async(Printer.objects.get)(pk=pk)
@@ -28,8 +28,7 @@ class PrinterStatusConsumer(AsyncWebsocketConsumer):
         self.room_group_name = f"printer_{self.printer_name}"
 
         if self.printer_name not in printer_manager.printers:
-            await self.close()
-            return
+            print(f"[WS] Printer '{self.printer_name}' not in memory. Will report as 'Disconnected'.")
 
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
@@ -47,6 +46,16 @@ class PrinterStatusConsumer(AsyncWebsocketConsumer):
         last_status = None
 
         while self.printer_name in active_loops:
+            try:
+                printer_exists = await sync_to_async(Printer.objects.filter(name=self.printer_name).exists)()
+                if not printer_exists:
+                    print(f"[WS] Printer '{self.printer_name}' no longer exists. Closing socket.")
+                    active_loops.pop(self.printer_name, None)  # Stop the loop
+                    await self.close()
+                    return
+            except Exception as e:
+                print(f"[WS] DB check failed: {e}")
+
             printer_data = await sync_to_async(printer_manager.list_printer)(self.printer_name)
 
             if printer_data:
@@ -69,6 +78,14 @@ class PrinterStatusConsumer(AsyncWebsocketConsumer):
                     if job_data:
                         printer_data.update(job_data)
                         self.email_send = False
+                
+                # Handle failed jobs
+                else:
+                    failed_job = await self.get_failed_job(self.printer_name)
+                    if failed_job:
+                        printer_data.update(failed_job)
+                        await self.send_email(failed_job["job_id"])
+                        self.email_send = True
 
                 current_status = json.dumps(printer_data)
                 if current_status != last_status:
@@ -89,8 +106,6 @@ class PrinterStatusConsumer(AsyncWebsocketConsumer):
                         "message": json.dumps({"status": "Disconnected"})
                     }
                 )
-                active_loops.pop(self.printer_name, None)
-                break
 
             await asyncio.sleep(1)
 
@@ -125,6 +140,18 @@ class PrinterStatusConsumer(AsyncWebsocketConsumer):
         return None
     
     @sync_to_async
+    def get_failed_job(self, printer_name):
+        job = PrintJob.objects.select_related("user").filter(
+            printer__name=printer_name, status="Failed").first()
+        if job:
+            return {
+                "job_status": "Failed",
+                "job_id": job.id,
+                "job_owner_id": job.user.id,
+            }
+        return None
+    
+    @sync_to_async
     def send_email(self, job_id):
         if self.email_send:
             return
@@ -134,18 +161,34 @@ class PrinterStatusConsumer(AsyncWebsocketConsumer):
             return
         
         filename = job.file.name.split("/")[-1]
-        email_message = render_to_string('emails/print_job_completed.html', {
+        email_message_completed = render_to_string('emails/print_job_completed.html', {
             'username': job.user.username,
             'filename': job.file.name,
             'printer': job.printer.name,
         })
+
+        email_message_failed = render_to_string('emails/print_job_failed.html', {
+            'username': job.user.username,
+            'filename': job.file.name,
+            'printer': job.printer.name,
+        })
+        # Send email only if the user has an email address
         if job.user.email:
             try:
-                send_mail(
-                    subject=f"Your print {filename} is ready for pickup",
-                    message= email_message,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[job.user.email],
-                )
+                if job.status == "Completed":
+                    send_mail(
+                        subject=f"Your print {filename} is ready for pickup",
+                        message= email_message_completed,
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[job.user.email],
+                    )
+                if job.status == "Failed":
+                    send_mail(
+                        subject=f"Your print {filename} has failed",
+                        message= email_message_failed,
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[job.user.email],
+                    )
+
             except Exception as e:
                 print(f"Email failed: {e}")

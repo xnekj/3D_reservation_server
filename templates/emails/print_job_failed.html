@@ -1,0 +1,13 @@
+{% load i18n %}{% autoescape off %}
+{% blocktranslate with username=username %}Hello {{ username }},{% endblocktranslate %}
+
+{% blocktranslate %}We're sorry to inform you that your 3D print job has failed.{% endblocktranslate %}
+
+{% blocktranslate %}Print job name:{% endblocktranslate %} {{ filename|cut:"gcode_files/" }}
+{% blocktranslate %}Printer used:{% endblocktranslate %} {{ printer }}
+
+{% blocktranslate %}Please check the printer or contact a staff member for assistance. You may also try submitting the file again.{% endblocktranslate %}
+
+{% blocktranslate %}Thanks for using the 3D Printing Reservation System!{% endblocktranslate %}
+{% blocktranslate %}This is an automated message. Please do not reply.{% endblocktranslate %}
+{% endautoescape %}

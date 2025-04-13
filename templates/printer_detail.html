@@ -53,7 +53,9 @@
   </div>
 
   <div class="col-12 col-md-4 ms-auto d-flex justify-content-end align-items-end">
-    <form method="post" action="{% url 'start_print' printer.pk %}" enctype="multipart/form-data" class="w-100">{% csrf_token %}
+    <form id="print-form" enctype="multipart/form-data" class="w-100">
+      {% csrf_token %}
+      
       <h5>Print file:</h5>
       <div class="input-group">
         <input type="file" name="file" accept=".gcode,.gco" class="form-control" required>
@@ -62,6 +64,12 @@
         {% elif current_job %}
           <button class="btn btn-success" type="submit">Add to Queue</button>
         {% endif %}
+      </div>
+      <div id="print-feedback" class="mt-2 text-muted" style="display:none;">
+        <div class="d-flex align-items-center">
+          <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" id="print-spinner" style="display: none;"></div>
+          <span id="print-text" style="display: none;">Print is starting... please wait.</span>
+        </div>
       </div>
     </form>
   </div>
@@ -89,6 +97,10 @@
             {% csrf_token %}
             <button type="submit" class="btn btn-warning w-100">Remove Model</button>
           </form>
+          <div id="remove-feedback" class="mt-2 text-muted d-flex align-items-center" style="display:none;">
+            <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" id="remove-spinner" style="display: none;"></div>
+            <span id="remove-text" style="display: none;">Removing model... please wait.</span>
+          </div>
         </div>
     </div>
   </div>
@@ -198,7 +210,7 @@
     //Show and hide the remove model button
     const removeBtn = document.getElementById("remove-model-form");
     if (
-      data.job_status === "Completed" &&
+      ["Completed", "Failed"].includes(data.job_status) &&
       String(data.job_owner_id) === String(currentUserId)
     ) {
       if (removeBtn) {
@@ -207,10 +219,88 @@
       }
     }
   };
-
-    socket.onclose = function() {
-      document.getElementById("status").textContent = "Connecting...";
-    };
   </script>
+
+  <script>
+    document.getElementById("print-form").addEventListener("submit", async function(e) {
+      e.preventDefault();
+    
+      const form = e.target;
+      const submitBtn = form.querySelector("button[type='submit']");
+      const feedback = document.getElementById("print-feedback");
+      const spinner = document.getElementById("print-spinner");
+      const printText = document.getElementById("print-text");
+    
+      submitBtn.style.display = "none";
+      feedback.style.display = "flex";
+      spinner.style.display = "inline-block";
+      printText.style.display = "inline";
+    
+      try {
+        const response = await fetch("{% url 'start_print' printer.pk %}", {
+          method: "POST",
+          body: new FormData(form),
+          headers: {
+            "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value
+          }
+        });
+    
+        const data = await response.json();
+    
+        if (data.redirect) {
+          window.location.href = data.redirect;
+        } else {
+          throw new Error("No redirect received");
+        }
+      } catch (err) {
+        printText.textContent = "Failed to start print. Please try again.";
+        spinner.style.display = "none";
+        printText.style.display = "none";
+        submitBtn.style.display = "inline-block";
+        console.error(err);
+      }
+    });
+  </script>
+
+  <script>
+    document.getElementById("remove-model-form").addEventListener("submit", async function(e) {
+      e.preventDefault();
+    
+      const form = e.target;
+      const submitBtn = form.querySelector("button[type='submit']");
+      const feedback = document.getElementById("remove-feedback");
+      const spinner = document.getElementById("remove-spinner");
+      const removeText = document.getElementById("remove-text");
+    
+      submitBtn.style.display = "none";
+      feedback.style.display = "flex";
+      spinner.style.display = "inline-block";
+      removeText.style.display = "inline";
+    
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value
+          }
+        });
+    
+        const data = await response.json();
+    
+        if (data.redirect) {
+          window.location.href = data.redirect;
+        } else {
+          throw new Error("No redirect received");
+        }
+      } catch (err) {
+        removeText.textContent = "Failed to remove model. Please try again.";
+        spinner.style.display = "none";
+        removeText.style.display = "none";
+        submitBtn.style.display = "inline-block";
+        console.error(err);
+      }
+    });
+    </script>
+    
 {% endif %}
 {% endblock %}

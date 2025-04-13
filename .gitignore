@@ -1,5 +1,7 @@
 .venv/
+.env
 pycache/
 db.sqlite3
 **/migrations/pycache/.venv/
 __pycache__/
+printers_config.json

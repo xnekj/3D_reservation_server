@@ -48,6 +48,7 @@ class PrinterManager:
         
         #bool
         self.model_removed = {}
+        self.job_status_error = {}
 
         #threads
         self.monitor_threads = {}
@@ -81,6 +82,7 @@ class PrinterManager:
                             self.model_removed[printer_name] = data.get("model_removed", False)
                             self.printing_file[printer_name] = data.get("current_file")
                             self.printing_sd_filename[printer_name] = data.get("current_sd_file")
+                            self.job_status_error[printer_name] = data.get("job_status_error")
                         else:
                             print(f"Warning: Invalid data format for {printer_name}, skipping.")
                             
@@ -104,7 +106,8 @@ class PrinterManager:
                 "time_seconds": self.monitorprinter_time_seconds.get(printer_name, 0),
                 "model_removed": self.model_removed.get(printer_name, False),
                 "current_file": self.printing_file.get(printer_name),
-                "current_sd_file": self.printing_sd_filename.get(printer_name)
+                "current_sd_file": self.printing_sd_filename.get(printer_name),
+                "job_status_error": self.job_status_error.get(printer_name),
             }
             for printer_name, printer in self.printers.items()
         }
@@ -201,7 +204,7 @@ class PrinterManager:
     def list_printer(self, printer_name):
         """List all connected printers and put their data in a dictionary. For website."""
         printer_data = {}
-
+        
         if not self.printers:
             print("No printers connected.")
             return printer_data
@@ -417,7 +420,7 @@ class PrinterManager:
                 printer = self.printers[printer_name]
 
                 number = 0
-                base_name = os.path.splitext(os.path.basename(filename))[0][:6]
+                base_name = os.path.splitext(os.path.basename(filename))[0].replace(" ", "_")[:6]
                 base_name = base_name.ljust(6, '0')
                 sd_filename = f"{base_name.upper()}_{number}.GCO"
 
@@ -454,7 +457,11 @@ class PrinterManager:
                 self.monitorprinter_status[printer_name] = "Uploading to SD card"
                 printer.send_gcode_command(f"M110 N0 {sd_filename}", print_response = DEBUG) # Set line number
                 time.sleep(2) # Wait for printer to process the command - not waiting will sometimes break uploading. Potentially not needed.
-                printer.send_gcode_command(f"M28 {sd_filename}", print_response = DEBUG) # Start writing to SD card
+                response = printer.send_gcode_command(f"M28 {sd_filename}", print_response = DEBUG) # Start writing to SD card
+                if response and any("open failed" in line for line in response): # Check for file name error
+                    self.start_monitor_threads(printer_name)
+                    raise ValueError(f"Error during file upload.")
+                
                 time.sleep(2) # Wait for printer to process the command - just to be sure.
                 
                 start_time = time.time()
@@ -481,7 +488,7 @@ class PrinterManager:
                                 self.sd_upload_time_remaining[printer_name] = "0s"
 
                             self.monitorprinter_status[printer_name] = f"Uploading to SD card"
-                            if response and any("Error" in line or "open failed" in line for line in response):
+                            if response and any("Error" in line for line in response):
                                 self.start_monitor_threads(printer_name)
                                 raise ValueError(f"Error during file upload.")
                         
@@ -500,10 +507,9 @@ class PrinterManager:
                 self.printing_file[printer_name] = filename
                 self.save_printer_config()
 
-                
-
         except ValueError as e:
             print(f"Error uploading file to printer '{printer_name}': {e}")
+            self.job_status_error[printer_name] = True
         finally: 
             self.start_monitor_threads(printer_name)
 
@@ -540,16 +546,18 @@ class PrinterManager:
                 or (self.monitorprinter_status.get(printer_name) == "SD printing")):
                 raise ValueError(f"Cannot remove model during printing.")
             
-            if self.model_removed.get(printer_name):
+            if self.model_removed.get(printer_name) and not self.job_status_error.get(printer_name):
                 raise ValueError(f"No model to remove from printer '{printer_name}'.")
-
-            sd_filename = self.printing_sd_filename.get(printer_name)
-
-            if not sd_filename:
-                raise ValueError(f"No SD file found for printer '{printer_name}'.")
-
-            self.delete_file_from_sd(printer_name, sd_filename)
             
+            if not self.job_status_error.get(printer_name):
+                sd_filename = self.printing_sd_filename.get(printer_name)
+
+                if not sd_filename:
+                    raise ValueError(f"No SD file found for printer '{printer_name}'.")
+
+                self.delete_file_from_sd(printer_name, sd_filename)
+
+            self.job_status_error[printer_name] = False
             self.monitorprinter_current_byte[printer_name] = 0
             self.monitorprinter_total_byte[printer_name] = 0
             self.monitorprinter_time[printer_name] = 0
@@ -562,7 +570,7 @@ class PrinterManager:
             self.save_printer_config()
 
             if self.queues[printer_name]:
-                self.print_next_in_queue(printer_name)
+                self.print_next_in_queue(printer_name, raise_on_error)
                 return # Prevent from starting monitoring threads again.
 
         except (ValueError, IndexError) as e:
@@ -596,7 +604,7 @@ class PrinterManager:
 
         self.start_monitor_threads(printer_name)
 
-    def print_next_in_queue(self, printer_name):
+    def print_next_in_queue(self, printer_name, raise_on_error=False):
         """Start the next print job in the queue for a printer.
         Create a new thread for the print job."""
         try:
@@ -622,6 +630,8 @@ class PrinterManager:
 
         except (IndexError, ValueError) as e:
             print(f"Error: Queue for printer '{printer_name}' is empty.")
+            if raise_on_error:
+                raise
 
     
     def print_job(self, printer_name, filename):
@@ -640,6 +650,7 @@ class PrinterManager:
 
         except Exception as e:
             print(f"Error during print job on '{printer_name}': {e}")
+            self.job_status_error[printer_name] = True
             self.cancel_print(printer_name)
 
     def print_gcode(self, printer_name, filename, raise_on_error=False):
@@ -650,10 +661,11 @@ class PrinterManager:
             
             self.add_to_queue(printer_name, filename)
             
-            self.print_next_in_queue(printer_name)
+            self.print_next_in_queue(printer_name, raise_on_error)
 
         except (ValueError, IndexError) as e:
             print(f"Error adding file to queue and starting print job: {e}")
+            self.job_status_error[printer_name] = True
             if raise_on_error:
                 raise
 
