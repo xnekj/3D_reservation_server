@@ -50,8 +50,6 @@ SECRET_KEY=your_secret_key
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
 ```
 
----
-
 ## Setup & Usage
 
 ### 5. Run Migrations
@@ -67,8 +65,6 @@ An initial superuser is auto-created:
 
 Change credentials anytime via the admin panel or User Management tab.
 
----
-
 ### 6. Start Development Server
 
 ```bash
@@ -78,7 +74,6 @@ python manage.py runserver
 Then open:  
 [http://127.0.0.1:8000](http://127.0.0.1:8000)
 
----
 
 ### 7. Login to Admin Panel
 
@@ -92,7 +87,6 @@ Login with:
 
 You can manage users, jobs, and printers here.
 
----
 
 ### 8. Verify WebSocket & HTTP
 
@@ -100,7 +94,6 @@ You can manage users, jobs, and printers here.
 - Confirm WebSocket connects and shows messages
 - Navigate through UI and verify printer statuses and jobs update in real time
 
----
 
 ## Printer Control
 
@@ -149,7 +142,6 @@ This guide walks you through setting up your Django 3D Printer Server on a Linux
 sudo apt update && sudo apt upgrade
 ```
 
----
 
 ### 2. Install required packages
 
@@ -157,7 +149,6 @@ sudo apt update && sudo apt upgrade
 sudo apt install python3-pip python3-venv git nginx redis
 ```
 
----
 
 ### 3. Clone the Repository
 
@@ -166,7 +157,6 @@ git clone https://github.com/your_username/your_project_name.git
 cd your_project_name
 ```
 
----
 
 ### 4. Create Virtual Environment
 
@@ -175,7 +165,6 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
----
 
 ### 5. Install Dependencies
 
@@ -183,7 +172,6 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
----
 
 ### 6. Configure `.env` File
 
@@ -198,7 +186,6 @@ SECRET_KEY=your_secret_key
 DJANGO_ALLOWED_HOSTS=your_server_ip_adress,localhost
 ```
 
----
 
 ### 7. Run Migrations
 
@@ -213,9 +200,6 @@ An initial superuser is auto-created:
 
 Change credentials anytime via the admin panel or User Management tab.
 
----
-
----
 
 ### Step 8: Collect Static Files for Production
 
@@ -227,7 +211,6 @@ python manage.py collectstatic
 
 This will copy all static files from your app into the directory specified in STATIC_ROOT for production.
 
----
 
 ### Step 9: Set Permissions for media/ and static/ Directories
 
@@ -242,7 +225,6 @@ sudo chmod -R 755 /home/pi/3D_reservation_server/media
 
 Ensure proper permissions for the media and static directories. This allows Nginx to serve static files and handle file uploads.
 
----
 
 ## Step 2: Run Daphne as a Service
 
@@ -283,7 +265,6 @@ sudo systemctl start daphne
 sudo systemctl enable daphne
 ```
 
----
 
 ## Step 3: Configure Nginx
 
