@@ -4,15 +4,19 @@
 
 {% block content %}
 <br>
-<h2>User Management</h2>
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h3 class="mb-0">User Management</h3>
+  <div class="d-flex gap-2">
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+      Add New User
+    </button>
+  </div>
+</div>
 
-
-<button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addUserModal">
-  Add New User
-</button>
+<hr class="mb-3 mt-0">
 
 <br>
-<div class="mt-4">
+<div class="mt2">
   {% if messages %}
     {% for message in messages %}
       {% if 'user_error' in message.tags %}
@@ -30,22 +34,41 @@
   {% endif %}
 </div>
 
+<div class="mb-3">
+  <select class="form-select w-auto" id="roleFilter" onchange="filterTable()">
+    <option value="all">All Roles</option>
+    <option value="admin">Admin</option>
+    <option value="teacher">Teacher</option>
+    <option value="student">Student</option>
+  </select>
+</div>
+
+<div class="mb-3 d-flex flex-wrap gap-2">
+  <button class="btn btn-outline-secondary btn-sm" onclick="filterByLetter('all')">All</button>
+  {% for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
+    <button class="btn btn-outline-secondary btn-sm" onclick="filterByLetter('{{ letter }}')">{{ letter }}</button>
+  {% endfor %}
+</div>
+
 <!-- User Table -->
-<table class="table">
+<table class="table table-bordered">
   <thead>
     <tr>
-      <th>Email</th>
+      <th scope="col">#</th>
       <th>Username</th>
+      <th>Email</th>
       <th>Role</th>
       <th>Print Jobs Limit</th>
+      <th>Actions</th>
     </tr>
   </thead>
   <tbody>
     {% for user in users %}
     <tr>
+      <td>{{ forloop.counter }}</td>
+      <td class="user-name">{{ user.username }}</td>
       <td>{{ user.email }}</td>
-      <td>{{ user.username }}</td>
-      <td>{{ user.role }}</td>
+      <td class="user-role">{{ user.role }}</td>
       <td>{{ user.print_jobs_limit }}</td>
       <td>
       <button type="button"
@@ -159,6 +182,29 @@
     <a class="btn btn-secondary ms-2" href="?page={{ page_obj.next_page_number }}">Next</a>
   {% endif %}
 </div>
+
+<script>
+  function filterTable() {
+    const role = document.getElementById("roleFilter").value;
+    document.querySelectorAll("tbody tr").forEach(row => {
+      const userRole = row.querySelector(".user-role").textContent.trim().toLowerCase();
+      row.style.display = (role === "all" || userRole === role) ? "" : "none";
+    });
+  }
+
+  function filterByLetter(letter) {
+    document.querySelectorAll("tbody tr").forEach(row => {
+      const username = row.querySelector(".user-name").textContent.trim().toUpperCase();
+      if (letter === 'all' || username.startsWith(letter)) {
+        row.style.display = "";
+      } else {
+        row.style.display = "none";
+      }
+    });
+  }
+  // Reset filters on page load
+    document.getElementById("roleFilter").value = "all";
+</script>
 
 
 {% endblock %}

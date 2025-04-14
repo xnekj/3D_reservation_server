@@ -22,6 +22,7 @@ class PrinterListView(LoginRequiredMixin, ListView):
     model = Printer
     template_name = 'printer_list.html'
     context_object_name = 'printers'
+    paginate_by = 20
 
 class PrinterCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = Printer

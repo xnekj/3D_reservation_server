@@ -24,12 +24,13 @@ def login_redirect_view(request):
     return redirect('printer_list')
 
 class CustomPasswordChangeView(PasswordChangeView):
-    success_url = reverse_lazy('password_change_done')
+    success_url = reverse_lazy('profile')
 
     def form_valid(self, form):
         response = super().form_valid(form)
         self.request.user.must_change_password = False
         self.request.user.save()
+        messages.success(self.request, "Your password has been changed.", extra_tags="password_changed")
         return response
 
 @login_required

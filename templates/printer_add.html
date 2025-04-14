@@ -6,26 +6,32 @@
 
 {% block content %}
 <br>
-<h2>Add a New Printer</h2>
-<form method="post" id="printer-form">
-    {% csrf_token %}
-    {{ form|crispy }}
-    <button type="submit" class="btn btn-success">Add Printer</button>
-    <button type="button" class="btn btn-outline-secondary" onclick="location.reload()">Refresh Ports</button>
-</form>
+<div class="d-flex justify-content-center mt-4">
+  <div class="p-4 w-100" style="max-width: 600px;">
+    <h2>Add a new printer</h2>
+    <div class="mt-4">
+      <form method="post" id="printer-form">
+          {% csrf_token %}
+          {{ form|crispy }}
+          <button type="submit" class="btn btn-success">Add Printer</button>
+          <button type="button" class="btn btn-outline-secondary" onclick="location.reload()">Refresh Ports</button>
+      </form>
+    </div>
 
-<br>
-<div class="mt-4">
-{% if messages %}
-  {% for message in messages %}
-    {% if 'connection_error' in message.tags %}
-      <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      </div>
+    <br>
+    <div class="mt-4">
+    {% if messages %}
+      {% for message in messages %}
+        {% if 'connection_error' in message.tags %}
+          <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endif %}
+      {% endfor %}
     {% endif %}
-  {% endfor %}
-{% endif %}
+    </div>
+  </div>
 </div>
 
 {% endblock %}

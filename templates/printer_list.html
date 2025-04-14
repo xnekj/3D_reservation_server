@@ -3,21 +3,36 @@
 {% block title %}List printers{% endblock %}
 
 {% block content %}
-<br>
-<h2 class="mb-4">Available Printers</h2>
-<div class="row">
-    {% for printer in printers %}
-    <div class="col-md-4">
-        <div class="card" style="display: inline-block; width: 18rem; margin: 10px;">
-            <a href="{% url 'printer_detail' printer.pk %}" class="list-group-item list-group-item-action">
-                <h5 class="mb-1">{{ printer.name }}</h5>
-                <small>Port: {{ printer.port }} | Baudrate: {{ printer.baudrate }}</small>
-            </a>
+<div class="container mt-5">
+    <div class="row gx-2 gy-2">
+        {% for printer in printers %}
+        <div class="col-6 col-md-3">
+            <div class="card" style="border: 3px solid #000; height: 100%;">
+                <a href="{% url 'printer_detail' printer.pk %}" class="list-group-item list-group-item-action p-3">
+                    <h5 class="mb-2">{{ printer.name }}</h5>
+                    <small>Port: {{ printer.port }} | Baudrate: {{ printer.baudrate }}</small>
+                </a>
+            </div>
         </div>
+        {% empty %}
+        <div class="col-12">
+            <p>No printers available.</p>
+        </div>
+        {% endfor %}
     </div>
-    {% empty %}
-        <p>No printers available.</p>
-    {% endfor %}
 </div>
 
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="mt-3 d-flex align-items-center justify-content-center">
+    {% if page_obj.has_previous %}
+      <a class="btn btn-secondary me-2" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+    {% endif %}
+  
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  
+    {% if page_obj.has_next %}
+      <a class="btn btn-secondary ms-2" href="?page={{ page_obj.next_page_number }}">Next</a>
+    {% endif %}
+</div>
+{% endif %}
 {% endblock content %}
