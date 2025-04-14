@@ -128,7 +128,7 @@ You can manage users, jobs, and printers here.
 - Set `DEBUG=False` in `.env` for production
 - For real email alerts, configure SMTP in `settings.py`
 
-# Production Deployment Guide for Django USB Printer Server
+# Production Deployment Guide for 3D_reservation_server
 
 This guide walks you through setting up your Django 3D Printer Server on a Linux server using **Daphne**, **Redis**, and **Nginx**.
 
