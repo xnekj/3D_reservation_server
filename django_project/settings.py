@@ -178,3 +178,7 @@ DEFAULT_FROM_EMAIL = 'no-reply@3dprinter.local'
 # EMAIL_HOST_PASSWORD = 'your_password'
 # EMAIL_PORT = 587
 # EMAIL_USE_TLS = True
+
+#timezone
+TIME_ZONE = 'Europe/Prague'
+USE_TZ = True
