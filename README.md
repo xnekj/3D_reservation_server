@@ -225,10 +225,33 @@ sudo chmod -R 755 /home/pi/3D_reservation_server/media
 
 Ensure proper permissions for the media and static directories. This allows Nginx to serve static files and handle file uploads.
 
+## Step 2: Set Up Redis for Django Channels
 
-## Step 2: Run Daphne as a Service
+### Step 10: Install Redis on the server:
 
-### 10. Create systemd service for Daphne
+```bash
+sudo apt install redis-server
+sudo systemctl enable redis-server
+sudo systemctl start redis-server
+```
+
+### Step 11: Verify Redis is running:
+
+To verify that Redis is running, use the following command:
+
+```bash
+redis-cli ping
+```
+
+You should see:
+
+```bash
+PONG
+```
+
+## Step 3: Run Daphne as a Service
+
+### 12. Create systemd service for Daphne
 
 ```bash
 sudo nano /etc/systemd/system/daphne.service
@@ -257,7 +280,7 @@ RuntimeDirectoryMode=0755
 WantedBy=multi-user.target
 ```
 
-### 11. Start and enable Daphne
+### 13. Start and enable Daphne
 
 ```bash
 sudo systemctl daemon-reload
@@ -266,9 +289,9 @@ sudo systemctl enable daphne
 ```
 
 
-## Step 3: Configure Nginx
+## Step 4: Configure Nginx
 
-### 12. Create Nginx config file
+### 14. Create Nginx config file
 
 ```bash
 sudo nano /etc/nginx/sites-available/django
@@ -309,7 +332,7 @@ server {
 }
 ```
 
-### 13. Enable the site and restart Nginx
+### 15. Enable the site and restart Nginx
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/django /etc/nginx/sites-enabled/
