@@ -13,6 +13,7 @@ from django.http import HttpResponseForbidden
 import os
 
 from .forms import CustomUserChangeForm, AdminSetPasswordForm, CustomUserCreationForm
+from .decorators import role_required
 from printer_manager.instance import printer_manager
 
 
@@ -31,6 +32,8 @@ class CustomPasswordChangeView(PasswordChangeView):
         self.request.user.save()
         return response
 
+@login_required
+@role_required(['student', 'teacher', 'admin'])
 def delete_from_queue(request, pk):
     job = get_object_or_404(PrintJob, pk=pk)
 

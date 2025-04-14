@@ -8,15 +8,17 @@ from django.conf import settings
 from django.http import HttpResponseForbidden
 from django.core.paginator import Paginator
 from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
 import os
 import time
 
 from .models import Printer, PrintJob
 from .forms import PrinterForm
+from accounts.decorators import role_required
 from printer_manager.instance import printer_manager
 
 
-class PrinterListView(ListView):
+class PrinterListView(LoginRequiredMixin, ListView):
     model = Printer
     template_name = 'printer_list.html'
     context_object_name = 'printers'
@@ -95,6 +97,8 @@ class PrinterDetailView(LoginRequiredMixin, DetailView):
         context['printer_connected'] = printer.name in printer_manager.printers
         return context
 
+@login_required
+@role_required(['admin', 'teacher', 'student'])
 def start_print(request, pk):
     printer = get_object_or_404(Printer, pk=pk)
     gcode_file = request.FILES.get("file")
@@ -151,6 +155,8 @@ def start_print(request, pk):
     "redirect": reverse('printer_detail', kwargs={"pk": printer.pk})
 })
 
+@login_required
+@role_required(['admin', 'teacher', 'student'])
 def delete_printjob(request, pk):
     job = get_object_or_404(PrintJob, pk=pk)
     printer = job.printer
@@ -201,6 +207,8 @@ def delete_printjob(request, pk):
     "redirect": reverse('printer_detail', kwargs={"pk": printer.pk})
     })
 
+@login_required
+@role_required(['admin'])
 def reconnect_printer(request, pk):
     printer = get_object_or_404(Printer, pk=pk)
     printer_name = printer.name
