@@ -269,9 +269,10 @@ User=pi
 Group=www-data
 WorkingDirectory=/home/pi/3D_reservation_server
 EnvironmentFile=/home/pi/3D_reservation_server/.env
-Environment="DJANGO_SETTINGS_MODULE=django_project.settings"
 
-ExecStart=/home/pi/3D_reservation_server/venv/bin/daphne -b 127.0.0.1 -p 8000 django_project.asgi:application
+ExecStart=/home/pi/3D_reservation_server/venv/bin/daphne \
+    -u /run/daphne/daphne.sock \
+    django_project.asgi:application
 
 RuntimeDirectory=daphne
 RuntimeDirectoryMode=0755
@@ -301,35 +302,33 @@ Add:
 
 ```nginx
 server {
-    listen 80;
-    server_name your_server_ip_adress your_website_name;
+    listen 80      default_server;
 
+    # Serve static files
     location /static/ {
         alias /home/pi/3D_reservation_server/staticfiles/;
     }
 
+    # Serve media files
     location /media/ {
         alias /home/pi/3D_reservation_server/media/;
     }
 
     location / {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://unix:/run/daphne/daphne.sock;
         proxy_http_version 1.1;
+
+        # WebSocket headers
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+
+        # Standard proxy headers
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
-
-    location /ws/ {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-    }
 }
+
 ```
 
 ### 15. Enable the site and restart Nginx

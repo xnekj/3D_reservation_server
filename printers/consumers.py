@@ -61,6 +61,7 @@ class PrinterStatusConsumer(AsyncWebsocketConsumer):
             if printer_data:
                 time_remaining = printer_manager.monitorprinter_time_remaining.get(self.printer_name)
                 printer_status = printer_manager.monitorprinter_status.get(self.printer_name)
+                job_status_error = printer_manager.job_status_error.get(self.printer_name)
 
                 # Handle completed jobs
                 if time_remaining == "Printing Completed" and printer_status == "Not SD printing":
@@ -80,12 +81,14 @@ class PrinterStatusConsumer(AsyncWebsocketConsumer):
                         self.email_send = False
                 
                 # Handle failed jobs
-                else:
-                    failed_job = await self.get_failed_job(self.printer_name)
-                    if failed_job:
-                        printer_data.update(failed_job)
-                        await self.send_email(failed_job["job_id"])
-                        self.email_send = True
+                elif job_status_error:
+                    active_job = await self.get_active_job(self.printer_name)
+                    if active_job:
+                        failed_job = await self.mark_job_failed(active_job["job_id"])
+                        if failed_job:
+                            printer_data.update(failed_job)
+                            await self.send_email(failed_job["job_id"])
+                            self.email_send = True
 
                 current_status = json.dumps(printer_data)
                 if current_status != last_status:
@@ -140,9 +143,11 @@ class PrinterStatusConsumer(AsyncWebsocketConsumer):
         return None
     
     @sync_to_async
-    def get_failed_job(self, printer_name):
-        job = PrintJob.objects.select_related("user").filter(
-            printer__name=printer_name, status="Failed").first()
+    def mark_job_failed(self, job_id):
+        job = PrintJob.objects.select_related("user").filter(id=job_id).first()
+        if job:
+            job.status = "Failed"
+            job.save()
         if job:
             return {
                 "job_status": "Failed",

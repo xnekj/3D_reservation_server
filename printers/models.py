@@ -14,7 +14,7 @@ class PrintJob(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
     file = models.FileField(upload_to='gcode_files/')
     status = models.CharField(
-        max_length=50, choices=[("Queued", "Queued"), ("Printing", "Printing"), ("Completed", "Completed")], default="Queued"
+        max_length=50, choices=[("Queued", "Queued"), ("Printing", "Printing"), ("Completed", "Completed"), ("Failed", "Failed")], default="Queued"
     )
     created_at = models.DateTimeField(auto_now_add=True)
 

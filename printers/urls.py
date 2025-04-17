@@ -1,7 +1,7 @@
 from django.urls import path
 
 from .views import PrinterListView, PrinterCreateView, PrinterDeleteView, PrinterDetailView
-from .views import start_print, delete_printjob, reconnect_printer
+from .views import start_print, delete_printjob, reconnect_printer, cancel_printjob
 
 urlpatterns = [
     path('<int:pk>/delete/', PrinterDeleteView.as_view(), name='printer_delete'),
@@ -11,4 +11,5 @@ urlpatterns = [
     path('printjob/<int:pk>/delete/', delete_printjob, name='delete_printjob'),
     path('<int:pk>/reconnect/', reconnect_printer, name='reconnect_printer'),
     path('', PrinterListView.as_view(), name='printer_list'),
+    path('printjob/<int:pk>/cancel/', cancel_printjob, name='cancel_printjob'),
 ]

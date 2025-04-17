@@ -54,6 +54,9 @@ class PrinterManager:
         self.monitor_threads = {}
         self.print_threads = {}
         self.monitor_events = {}
+
+        #monitor printer 
+        self.last_time_remaining_update = {}
         
 
         self.load_printer_config()
@@ -295,6 +298,7 @@ class PrinterManager:
 
                 #set dictionary values
                 self.model_removed[printer_name] = True
+                self.job_status_error[printer_name] = False
 
                 self.queues[printer_name] = deque()
                 self.save_printer_config()
@@ -522,7 +526,24 @@ class PrinterManager:
 
         printer = self.printers[printer_name]
 
-        printer.send_gcode_command(f"M29", print_response=True) # Stop SD print
+        self.job_status_error[printer_name] = True
+        self.save_printer_config()
+
+        if self.monitorprinter_status.get(printer_name) == "SD printing":
+            
+            printer.send_gcode_command("M108", print_response=True)  # Break out of wait-for-user during heating
+
+            printer.send_gcode_command("M524", print_response=True)  # Abort SD print (if supported)
+
+            # Attempt Prusa-style cancel for serial prints
+            printer.send_gcode_command("M603", print_response=True)
+
+            
+
+        # If printing from SD, stop writing to SD
+        printer.send_gcode_command(f"M29", print_response=True) # Stop writing to SD
+
+        # Stop the print job
         printer.send_gcode_command(f"M104 S0", print_response=True) # Turn off hotend
         printer.send_gcode_command(f"M140 S0", print_response=True) # Turn off bed
         printer.send_gcode_command(f"M107", print_response=True) # Turn off fan
@@ -674,12 +695,18 @@ class PrinterManager:
         This method is invoked by monitor_printer() to handle serial input."""
         regex_temp = r"(?:ok\s+)?T:([\d\.]+)\s*/[\d\.]+\s+B:([\d\.]+)\s*/[\d\.]+" # Hotend and bed temp
         match_temp = re.match(regex_temp, line)
+        
+        regex_temp_2 = r"T:([\d\.]+).*?B:([\d\.]+)" #prusa temp
+        match_temp_2 = re.match(regex_temp_2, line)
 
         regex_time = r"echo:Print time:\s*(?:(\d+)h\s*)?(?:(\d+)m\s*)?(?:(\d+)s)?" # Print time
         match_time = re.match(regex_time, line)
 
         regex_time_2 = r"echo:\s*(?:(\d+)\s*hour[s]?,?\s*)?(?:(\d+)\s*min[s]?,?\s*)?(?:(\d+)\s*sec[s]?)" # Print time second option
         match_time_2 = re.match(regex_time_2, line)
+
+        regex_time_remaining = r"NORMAL MODE: Percent done: (\d+); print time remaining in mins: (-?\d+)"
+        match_time_remaining = re.match(regex_time_remaining, line)
 
         regex_status = r"SD printing byte (\d+)/(\d+)" # Print status
         match_status = re.match(regex_status, line)
@@ -720,10 +747,25 @@ class PrinterManager:
 
                     self.monitorprinter_time_seconds[printer_name] = hours*60*60 + minutes*60 + seconds
 
+            if match_time_remaining:
+                if match_time_remaining.group(1):
+                    self.monitorprinter_procent[printer_name] = f"{int(match_time_remaining.group(1).strip())}%"
+                if match_time_remaining.group(2):
+                    mins_remaining = int(match_time_remaining.group(2))
+                    if mins_remaining < 0:
+                        self.monitorprinter_time_remaining[printer_name] = "Calculating..."
+                    else:
+                        self.monitorprinter_time_remaining[printer_name] = f"{mins_remaining}m"
+                self.last_time_remaining_update[printer_name] = time.time()
+
 
             if match_temp:
                 self.monitorprinter_hotend_temp[printer_name] = match_temp.group(1).strip()
                 self.monitorprinter_bed_temp[printer_name] = match_temp.group(2).strip()
+            
+            if match_temp_2:
+                self.monitorprinter_hotend_temp[printer_name] = match_temp_2.group(1).strip()
+                self.monitorprinter_bed_temp[printer_name] = match_temp_2.group(2).strip()
             
             if match_status:
                 self.monitorprinter_current_byte[printer_name] = int(match_status.group(1))
@@ -733,7 +775,9 @@ class PrinterManager:
             if match_status_2:
                 self.monitorprinter_status[printer_name] = "Not SD printing"
 
-            self.get_print_progress(printer_name)
+            last_update = self.last_time_remaining_update.get(printer_name, 0)
+            if time.time() - last_update > 5:
+                self.get_print_progress(printer_name)
 
     def monitor_printer(self, printer_name, polling):
         """Periodically check the printer status and read incoming data.

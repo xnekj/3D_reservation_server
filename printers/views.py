@@ -9,6 +9,7 @@ from django.http import HttpResponseForbidden
 from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 import os
 import time
 
@@ -128,15 +129,6 @@ def start_print(request, pk):
         if printer_manager.model_removed.get(printer.name, False):
             printer_manager.print_gcode(printer.name, file_path, raise_on_error=True)
             
-            # Poll the error flag for a short time, because error is in thread
-            # and may not be set immediately
-            for _ in range(60):  # check every 0.5s for 30s
-                if printer_manager.job_status_error.get(printer.name):
-                    job.status = "Failed"
-                    job.save()
-                    raise Exception(f"Error during print job on '{printer.name}'. Please check the printer status.")
-                time.sleep(0.5)
-            
             job.status = "Printing"
             job.save()
             printer_manager.model_removed[printer.name] = False
@@ -151,10 +143,7 @@ def start_print(request, pk):
     except Exception as e:
         messages.error(request, f"Print failed: {e}", extra_tags='print_error')
         
-
-    return JsonResponse({
-    "redirect": reverse('printer_detail', kwargs={"pk": printer.pk})
-})
+    return redirect('printer_detail', pk=pk)
 
 @login_required
 @role_required(['admin', 'teacher', 'student'])
@@ -187,13 +176,6 @@ def delete_printjob(request, pk):
         queued_job = PrintJob.objects.filter(printer=printer, status="Queued").order_by('created_at').first()
         if queued_job:
 
-            for _ in range(60):  # check every 0.5s for 30s
-                if printer_manager.job_status_error.get(printer.name):
-                    queued_job.status = "Failed"
-                    queued_job.save()
-                    raise Exception(f"Error during print job on '{printer.name}'. Please check the printer status.")
-                time.sleep(0.5)
-
             queued_job.status = "Printing"
             queued_job.save()
             filename = os.path.basename(queued_job.file.path)
@@ -221,4 +203,23 @@ def reconnect_printer(request, pk):
         messages.error(request, f"Error reconnecting printer: {e}, please check the connection.", extra_tags='print_error')
 
     return redirect('printer_detail', pk=pk)
+
+@login_required
+@role_required(['admin', 'teacher', 'student'])
+@require_POST
+def cancel_printjob(request, pk):
+    job = get_object_or_404(PrintJob, pk=pk)
+    
+    if request.user != job.user:
+        return HttpResponseForbidden("You are not allowed to cancel this print job.")
+
+    printer_name = job.printer.name
+
+    try:
+        printer_manager.cancel_print(printer_name)
+        messages.success(request, "Print job cancelled successfully.", extra_tags='print_success')
+    except Exception as e:
+        messages.error(request, f"Failed to cancel print job: {e}", extra_tags='print_error')
+
+    return redirect('printer_detail', pk=job.printer.pk)
 

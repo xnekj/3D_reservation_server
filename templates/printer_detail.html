@@ -53,9 +53,7 @@
   </div>
 
   <div class="col-12 col-md-4 ms-auto d-flex justify-content-end align-items-end">
-    <form id="print-form" enctype="multipart/form-data" class="w-100">
-      {% csrf_token %}
-      
+    <form method="post" action="{% url 'start_print' printer.pk %}" enctype="multipart/form-data" class="w-100">{% csrf_token %}
       <h5>Print file:</h5>
       <div class="input-group">
         <input type="file" name="file" accept=".gcode,.gco" class="form-control" required>
@@ -64,12 +62,6 @@
         {% elif current_job %}
           <button class="btn btn-success" type="submit">Add to Queue</button>
         {% endif %}
-      </div>
-      <div id="print-feedback" class="mt-2 text-muted" style="display:none;">
-        <div class="d-flex align-items-center">
-          <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" id="print-spinner" style="display: none;"></div>
-          <span id="print-text" style="display: none;">Print is starting... please wait.</span>
-        </div>
       </div>
     </form>
   </div>
@@ -90,7 +82,18 @@
         <div class="mt-3">
           <strong>There are no active print jobs at the moment.</strong>
         </div>
-      {% endif %}   
+      {% endif %}
+      <!--Cancel Print Form-->
+        <div class="d-flex gap-2">
+          <form method="post" action="" id="cancel-print-form" style="display: none;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger w-100">Cancel Print</button>
+          </form>
+          <div id="cancel-feedback" class="mt-2 text-muted d-flex align-items-center" style="display:none;">
+            <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" id="cancel-spinner" style="display: none;"></div>
+            <span id="cancel-text" style="display: none;">Canceling... please wait.</span>
+          </div>
+        </div>
       <!-- Remove Model Form -->
         <div class="d-flex gap-2">
           <form method="post" action="" id="remove-model-form" style="display: none;">
@@ -218,50 +221,25 @@
         removeBtn.action = `/printers/printjob/${data.job_id}/delete/`;
       }
     }
+
+    // Show and hide the cancel print button
+    const cancelBtn = document.getElementById("cancel-print-form");
+    
+  if (
+    data.job_status === "Printing" &&
+    data.status === "SD printing" && // Only show when printer is SD printing
+    String(data.job_owner_id) === String(currentUserId)
+  ) {
+      if (cancelBtn) {
+        cancelBtn.style.display = "block";
+        cancelBtn.action = `/printers/printjob/${data.job_id}/cancel/`;
+      }
+    } else {
+      if (cancelBtn) cancelBtn.style.display = "none";
+    }
   };
   </script>
-
-  <script>
-    document.getElementById("print-form").addEventListener("submit", async function(e) {
-      e.preventDefault();
     
-      const form = e.target;
-      const submitBtn = form.querySelector("button[type='submit']");
-      const feedback = document.getElementById("print-feedback");
-      const spinner = document.getElementById("print-spinner");
-      const printText = document.getElementById("print-text");
-    
-      submitBtn.style.display = "none";
-      feedback.style.display = "flex";
-      spinner.style.display = "inline-block";
-      printText.style.display = "inline";
-    
-      try {
-        const response = await fetch("{% url 'start_print' printer.pk %}", {
-          method: "POST",
-          body: new FormData(form),
-          headers: {
-            "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value
-          }
-        });
-    
-        const data = await response.json();
-    
-        if (data.redirect) {
-          window.location.href = data.redirect;
-        } else {
-          throw new Error("No redirect received");
-        }
-      } catch (err) {
-        printText.textContent = "Failed to start print. Please try again.";
-        spinner.style.display = "none";
-        printText.style.display = "none";
-        submitBtn.style.display = "inline-block";
-        console.error(err);
-      }
-    });
-  </script>
-
   <script>
     document.getElementById("remove-model-form").addEventListener("submit", async function(e) {
       e.preventDefault();
@@ -302,5 +280,44 @@
     });
     </script>
     
+    <script>
+      document.getElementById("cancel-print-form").addEventListener("submit", async function(e) {
+        e.preventDefault();
+      
+        const form = e.target;
+        const submitBtn = form.querySelector("button[type='submit']");
+        const feedback = document.getElementById("cancel-feedback");
+        const spinner = document.getElementById("cancel-spinner");
+        const removeText = document.getElementById("cancel-text");
+      
+        submitBtn.style.display = "none";
+        feedback.style.display = "flex";
+        spinner.style.display = "inline-block";
+        removeText.style.display = "inline";
+      
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+          });
+      
+          const data = await response.json();
+      
+          if (data.redirect) {
+            window.location.href = data.redirect;
+          } else {
+            throw new Error("No redirect received");
+          }
+        } catch (err) {
+          removeText.textContent = "Failed to rcancel print job. Please try again.";
+          spinner.style.display = "none";
+          removeText.style.display = "none";
+          submitBtn.style.display = "inline-block";
+          console.error(err);
+        }
+      });
+      </script>
 {% endif %}
 {% endblock %}
