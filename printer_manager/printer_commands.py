@@ -1,5 +1,5 @@
 import serial
-
+import time
 
 class PrinterCommands:
     def __init__(self, port, baudrate=115200):
@@ -13,7 +13,13 @@ class PrinterCommands:
         try:
             self.serial = serial.Serial(self.port, self.baudrate, timeout=5)
             print(f"Connected to {self.port} at {self.baudrate} baud.")
-            self.connected = True
+            self.serial.write(b'M115\n') # Send a command to check the printer's firmware version
+            time.sleep(1) # allow time for the printer to respond
+            response = self.serial.readline().decode(errors="ignore").strip()
+            if response:
+                self.connected = True
+            else:
+                raise serial.SerialException("No response from printer.")
         except serial.SerialException as e:
             print(f"Error connecting to printer: {e}")
             self.connected = False

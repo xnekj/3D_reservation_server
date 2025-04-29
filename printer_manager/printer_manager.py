@@ -57,6 +57,7 @@ class PrinterManager:
 
         #monitor printer 
         self.last_time_remaining_update = {}
+        self.last_time_connected_update = {}
         
 
         self.load_printer_config()
@@ -281,7 +282,7 @@ class PrinterManager:
 
         return sd_files
 
-    def connect_printer(self, printer_name, port, baudrate=115200):
+    def connect_printer(self, printer_name, port, baudrate=115200, raise_on_error=False):
         """Connect to a printer and add it to the list of connected printers."""
         try:
              # Reset line number
@@ -311,8 +312,10 @@ class PrinterManager:
             
         except ValueError as e:
             print(f"Error connecting printer: {e}")
+            if raise_on_error:
+                raise (f"Error connecting printer '{port}'.")
             
-    def remove_printer(self, printer_name):
+    def remove_printer(self, printer_name, raise_on_error=False):
         """Remove a printer from the list of connected printers."""
         try:
             if printer_name not in self.printers:
@@ -326,6 +329,8 @@ class PrinterManager:
 
         except ValueError as e:
             print(f"Error removing printer: {e}")
+            if raise_on_error:
+                raise ValueError(f"Error removing printer '{printer_name}'.")
 
     def send_gcode(self, printer_name, gcode):
         """Send a G-code command to a printer. Debugging only."""
@@ -774,10 +779,18 @@ class PrinterManager:
 
             if match_status_2:
                 self.monitorprinter_status[printer_name] = "Not SD printing"
+                self.last_time_connected_update[printer_name] = time.time()
 
+            # Check if the printer sending time remaining and print progress
             last_update = self.last_time_remaining_update.get(printer_name, 0)
             if time.time() - last_update > 5:
                 self.get_print_progress(printer_name)
+
+            # Check if the printer is still connected
+            last_connected = self.last_time_connected_update.get(printer_name, 0)
+            if time.time() - last_connected > 10 and self.monitorprinter_status.get(printer_name) == "Not SD printing":
+                printer = self.printers.get(printer_name)
+                printer.connected = False
 
     def monitor_printer(self, printer_name, polling):
         """Periodically check the printer status and read incoming data.

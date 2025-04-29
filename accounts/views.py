@@ -97,7 +97,7 @@ class UserManagementView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     paginate_by = 8
 
     def test_func(self):
-        return self.request.user.is_superuser or self.request.user.is_staff
+        return self.request.user.is_superuser or self.request.user.role == 'admin'
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -120,7 +120,7 @@ class UserManagementView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
 class CreateUserView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     def test_func(self):
-        return self.request.user.is_superuser or self.request.user.is_staff
+        return self.request.user.is_superuser or self.request.user.role == 'admin'
 
     def post(self, request):
         form = CustomUserCreationForm(request.POST)
@@ -137,7 +137,7 @@ class CreateUserView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
 class EditUserView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def test_func(self):
-        return self.request.user.is_superuser or self.request.user.is_staff
+        return self.request.user.is_superuser or self.request.user.role == 'admin'
 
     def post(self, request, pk):
         user = CustomUser.objects.get(pk=pk)
@@ -150,7 +150,7 @@ class EditUserView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 class AdminPasswordChangeModalView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def test_func(self):
-        return self.request.user.is_superuser or self.request.user.is_staff
+        return self.request.user.is_superuser or self.request.user.role == 'admin'
 
     def post(self, request, pk):
         user = get_object_or_404(CustomUser, pk=pk)
@@ -168,10 +168,16 @@ class AdminPasswordChangeModalView(LoginRequiredMixin, UserPassesTestMixin, View
 
 class DeleteUserView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
-        return self.request.user.is_superuser or self.request.user.is_staff
+        return self.request.user.is_superuser or self.request.user.role == 'admin'
 
     def post(self, request, pk):
         user = get_object_or_404(CustomUser, pk=pk)
+
+        # Prevent admins from deleting each other
+        if user.role == 'admin' and not request.user.is_superuser:
+            messages.error(request, "Only superusers can delete admin accounts.", extra_tags='user_error')
+            return redirect('user_management')
+
         user.delete()
         messages.success(request, f"User '{user.username}' has been deleted.", extra_tags='user_success')
         return redirect('user_management')

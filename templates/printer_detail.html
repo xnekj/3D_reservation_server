@@ -27,7 +27,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div>
-          <strong>Status:</strong> <span id="status">Loading...</span><br>
+          <strong>Status:</strong> <span id="status">Disconnected</span><br>
         </div>
 
         <div id="upload-info" style="display: none;">
@@ -47,6 +47,14 @@
         <div id="default-info" style="display: none;">
           <strong>Hotend Temp:</strong> <span id="default-hotend-temp">-</span> °C<br>
           <strong>Bed Temp:</strong> <span id="default-bed-temp">-</span> °C<br>
+        </div>
+        <div id="disconnected-info" style="display: none;">
+          <span>Printer is disconnected! </span>
+          <span>Check the connection and try to reconnect.</span><br>
+        </div>
+        <div id="unknown-info" style="display: none;">
+          <span>Printer status unknown. </span>
+          <span>Please contact administrator</span><br>
         </div>
       </div>
     </div>
@@ -190,19 +198,39 @@
       const printInfo = document.getElementById("print-info");
       const defaultInfo = document.getElementById("default-info");
       const jobStatusEl = document.getElementById("print-job-status");
+      const disconnectedInfo = document.getElementById("disconnected-info");
+      const unknownInfo = document.getElementById("unknown-info");
 
       if (status === "Uploading to SD card") {
         if (uploadInfo) uploadInfo.style.display = "block";
         if (printInfo) printInfo.style.display = "none";
         if (defaultInfo) defaultInfo.style.display = "none";
+        if (disconnectedInfo) disconnectedInfo.style.display = "none";
+        if (unknownInfo) unknownInfo.style.display = "none";
       } else if (status === "SD printing") {
         if (uploadInfo) uploadInfo.style.display = "none";
         if (printInfo) printInfo.style.display = "block";
         if (defaultInfo) defaultInfo.style.display = "none";
-      } else {
+        if (disconnectedInfo) disconnectedInfo.style.display = "none";
+        if (unknownInfo) unknownInfo.style.display = "none";
+      } else if (status === "Not SD printing") {
         if (uploadInfo) uploadInfo.style.display = "none";
         if (printInfo) printInfo.style.display = "none";
         if (defaultInfo) defaultInfo.style.display = "block";
+        if (disconnectedInfo) disconnectedInfo.style.display = "none";
+        if (unknownInfo) unknownInfo.style.display = "none";
+      } else if (status === "Disconnected") {
+        if (uploadInfo) uploadInfo.style.display = "none";
+        if (printInfo) printInfo.style.display = "none";
+        if (defaultInfo) defaultInfo.style.display = "none";
+        if (disconnectedInfo) disconnectedInfo.style.display = "block";
+        if (unknownInfo) unknownInfo.style.display = "none";
+      } else {
+        if (uploadInfo) uploadInfo.style.display = "none";
+        if (printInfo) printInfo.style.display = "none";
+        if (defaultInfo) defaultInfo.style.display = "none";
+        if (disconnectedInfo) disconnectedInfo.style.display = "none";
+        if (unknownInfo) unknownInfo.style.display = "block";
       }
 
     //Update print-job-status (current_job.status)
@@ -228,7 +256,8 @@
   if (
     data.job_status === "Printing" &&
     data.status === "SD printing" && // Only show when printer is SD printing
-    String(data.job_owner_id) === String(currentUserId)
+    String(data.job_owner_id) === String(currentUserId) &&
+    parseInt(data.print_progress.replace("%", "")) >= 2 // Progress at least 2%
   ) {
       if (cancelBtn) {
         cancelBtn.style.display = "block";
@@ -311,7 +340,7 @@
             throw new Error("No redirect received");
           }
         } catch (err) {
-          removeText.textContent = "Failed to rcancel print job. Please try again.";
+          removeText.textContent = "Failed to cancel print job. Please try again.";
           spinner.style.display = "none";
           removeText.style.display = "none";
           submitBtn.style.display = "inline-block";

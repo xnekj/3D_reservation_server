@@ -84,12 +84,15 @@
         Change Password
       </button>
       {% if request.user != user %}
-        <form method="POST" action="{% url 'delete_user' user.id %}" style="display:inline;">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-sm btn-danger"
-                  onclick="return confirm('Are you sure you want to delete {{ user.username }}?')">
-            Remove
-          </button>
+        {% if user.role != 'admin' or request.user.is_superuser %}
+          <form method="POST" action="{% url 'delete_user' user.id %}" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-danger"
+            onclick="return confirm('Are you sure you want to delete {{ user.username }}?')">
+          Remove
+        </button>
+          </form>
+      {% endif %}
         </form>
       {% endif %}
       </td>

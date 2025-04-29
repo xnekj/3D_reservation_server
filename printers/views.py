@@ -38,7 +38,7 @@ class PrinterCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         printer = form.save(commit=False)
 
         try:
-            printer_manager.connect_printer(printer.name, printer.port, printer.baudrate)
+            printer_manager.connect_printer(printer.name, printer.port, printer.baudrate, raise_on_error=True)
             printer = form.save()
             response = redirect(self.success_url)
         except Exception as e:
@@ -63,7 +63,7 @@ class PrinterDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         printer = self.object
 
         try:
-            printer_manager.remove_printer(printer.name)
+            printer_manager.remove_printer(printer.name, raise_on_error=True)
             printer.delete()
             response = redirect(self.success_url)
         except Exception as e:
