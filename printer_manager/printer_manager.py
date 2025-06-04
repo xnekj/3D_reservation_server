@@ -30,6 +30,7 @@ class PrinterManager:
         #sdupload time
         self.sd_upload_time = {}
         self.sd_upload_time_remaining = {}
+        self.monitorprinter_time_remaining_prusa = {}
 
         #monitoring
         self.monitorprinter_status = {}
@@ -40,11 +41,13 @@ class PrinterManager:
         self.monitorprinter_current_byte = {}
         self.monitorprinter_total_byte = {}
         self.monitorprinter_procent = {}
+        self.monitorprinter_procent_prusa = {}
 
         #time
         self.monitorprinter_time = {}        
         self.monitorprinter_time_remaining = {}
         self.monitorprinter_time_seconds = {}
+
         
         #bool
         self.model_removed = {}
@@ -127,6 +130,7 @@ class PrinterManager:
                 printer.connect()
                 if printer.connected:
                     print(f"Successfully reconnected to {printer_name}.")
+                    self.start_monitor_threads(printer_name)
                 else:
                     print(f"Failed to reconnect to {printer_name}.")
 
@@ -143,6 +147,7 @@ class PrinterManager:
                 self.printers[printer_name].connect(raise_on_error=raise_on_error)
                 if self.printers[printer_name].connected:
                     print(f"Successfully reconnected to {printer_name}.")
+                    self.start_monitor_threads(printer_name)
                 else:    
                     print(f"Failed to reconnect to {printer_name}.")
         except (ValueError, ConnectionError) as e:
@@ -158,6 +163,12 @@ class PrinterManager:
     def start_monitor_threads(self, printer_name, polling=True):
         """Start the monitoring threads for a printer."""
         try:
+            # Check if a monitor thread is already running for this printer
+            thread = self.monitor_threads.get(printer_name)
+            if thread and thread.is_alive():
+                if DEBUG: print(f"Monitor thread for {printer_name} is already running.")
+                return
+            
             if DEBUG: print(f"Starting monitoring threads for {printer_name}...")
             self.monitor_events[printer_name] = threading.Event()
 
@@ -754,15 +765,11 @@ class PrinterManager:
 
             if match_time_remaining:
                 if match_time_remaining.group(1):
-                    self.monitorprinter_procent[printer_name] = f"{int(match_time_remaining.group(1).strip())}%"
+                    self.monitorprinter_procent_prusa[printer_name] = int(match_time_remaining.group(1).strip())
                 if match_time_remaining.group(2):
                     mins_remaining = int(match_time_remaining.group(2))
-                    if mins_remaining < 0:
-                        self.monitorprinter_time_remaining[printer_name] = "Calculating..."
-                    else:
-                        self.monitorprinter_time_remaining[printer_name] = f"{mins_remaining}m"
-                self.last_time_remaining_update[printer_name] = time.time()
-
+                    if mins_remaining > 0:
+                        self.monitorprinter_time_remaining_prusa[printer_name] = mins_remaining
 
             if match_temp:
                 self.monitorprinter_hotend_temp[printer_name] = match_temp.group(1).strip()
@@ -781,10 +788,7 @@ class PrinterManager:
                 self.monitorprinter_status[printer_name] = "Not SD printing"
                 self.last_time_connected_update[printer_name] = time.time()
 
-            # Check if the printer sending time remaining and print progress
-            last_update = self.last_time_remaining_update.get(printer_name, 0)
-            if time.time() - last_update > 5:
-                self.get_print_progress(printer_name)
+            self.get_print_progress(printer_name)
 
             # Check if the printer is still connected
             last_connected = self.last_time_connected_update.get(printer_name, 0)
@@ -865,18 +869,28 @@ class PrinterManager:
             self.monitorprinter_time_remaining[printer_name] = "Printing Completed"
             return
         
-        percent_completed = (current_byte / total_byte) * 100
+        #procent calculation
+        if self.monitorprinter_procent_prusa.get(printer_name):
+            percent_completed  = self.monitorprinter_procent_prusa.get(printer_name)
+        else:
+            percent_completed = (current_byte / total_byte) * 100 
         self.monitorprinter_procent[printer_name] = f"{int(percent_completed)}%"
 
-        if percent_completed > 5: # Calculate estimated time remaining after 5% completion to avoid misleading results
-            estimated_total_time = (elapsed_time / percent_completed) * 100
-            estimated_time_remaining = estimated_total_time - elapsed_time # Remaining time in seconds - not very accurate
+        #remaining time calculation
+        if self.monitorprinter_time_remaining_prusa.get(printer_name):
+            time_remaining = self.monitorprinter_time_remaining_prusa.get(printer_name) * 60 # Convert to seconds
+            if time_remaining:
+                estimated_time_remaining = time_remaining
+            else:
+                if percent_completed > 5: # Calculate estimated time remaining after 5% completion to avoid misleading results
+                    estimated_total_time = (elapsed_time / percent_completed) * 100
+                    estimated_time_remaining = estimated_total_time - elapsed_time # Remaining time in seconds - not very accurate
+                    
             if estimated_time_remaining > 3600:
                 self.monitorprinter_time_remaining[printer_name] = (f"{int(estimated_time_remaining) // 3600}h "
-                                                                    f"{int(estimated_time_remaining % 3600 // 60)}m "
-                                                                    f"{int(estimated_time_remaining) % 60}s")
+                                                                    f"{int(estimated_time_remaining % 3600 // 60)}m ")
             elif estimated_time_remaining > 60:
-                self.monitorprinter_time_remaining[printer_name] = f"{int(estimated_time_remaining) // 60}m {int(estimated_time_remaining) % 60}s"
+                self.monitorprinter_time_remaining[printer_name] = f"{int(estimated_time_remaining) // 60}m"
             elif estimated_time_remaining > 0 and self.monitorprinter_status[printer_name] == "SD printing":
                 self.monitorprinter_time_remaining[printer_name] = f"{int(estimated_time_remaining)}s"
             else:

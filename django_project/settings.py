@@ -169,16 +169,17 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 # Email settings - testing
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = 'no-reply@3dprinter.local'
+#EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
 
 # Email settings
 
-# EMAIL_HOST_USER = 'your_email@example.com'
-# EMAIL_HOST = 'smtp.yourmailserver.com'
-# EMAIL_HOST_PASSWORD = 'your_password'
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
+EMAIL_HOST_USER = env.str("EMAIL_HOST_USER")
+EMAIL_HOST = env.str("EMAIL_HOST")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_HOST_PASSWORD = env.str("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 #timezone
 TIME_ZONE = 'Europe/Prague'
