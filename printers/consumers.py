@@ -64,7 +64,7 @@ class PrinterStatusConsumer(AsyncWebsocketConsumer):
                 job_status_error = printer_manager.job_status_error.get(self.printer_name)
 
                 # Handle completed jobs
-                if time_remaining == "Printing Completed" and printer_status == "Not SD printing":
+                if time_remaining == "Printing Completed":
                     active_job = await self.get_active_job(self.printer_name)
                     if active_job:
                         completed_data = await self.mark_job_completed(active_job["job_id"])
